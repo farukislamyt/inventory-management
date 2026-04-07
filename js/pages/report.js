@@ -75,6 +75,8 @@ export function render(container) {
   // State
   let activeTab = 'inventory';
   let activeTable = null;
+  let activeChart1 = null;
+  let activeChart2 = null;
 
   // ---- Render header ----
   renderPageHeader(headerEl, {
@@ -124,6 +126,8 @@ export function render(container) {
   // ---- Render active tab ----
   function renderActiveTab() {
     if (activeTable) { try { activeTable.destroy(); } catch (e) { /* noop */ } activeTable = null; }
+    if (activeChart1) { try { activeChart1.destroy(); } catch (e) { /* noop */ } activeChart1 = null; }
+    if (activeChart2) { try { activeChart2.destroy(); } catch (e) { /* noop */ } activeChart2 = null; }
     tabContentEl.innerHTML = '';
 
     switch (activeTab) {
@@ -157,6 +161,21 @@ export function render(container) {
       </div>
     `;
     tabContentEl.appendChild(summaryEl);
+
+    // Charts Container
+    const chartsContainer = document.createElement('div');
+    chartsContainer.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;';
+    tabContentEl.appendChild(chartsContainer);
+
+    const chartCard1 = document.createElement('div');
+    chartCard1.style.cssText = 'background:var(--bg-primary,#fff);border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:16px;height:300px;';
+    chartCard1.innerHTML = '<h3 style="font-size:14px;margin-bottom:12px;color:var(--text-muted,#6b7280);font-weight:600;">Products by Category</h3><div style="position:relative;height:240px;"><canvas id="inv-chart-cat"></canvas></div>';
+    chartsContainer.appendChild(chartCard1);
+
+    const chartCard2 = document.createElement('div');
+    chartCard2.style.cssText = 'background:var(--bg-primary,#fff);border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:16px;height:300px;';
+    chartCard2.innerHTML = '<h3 style="font-size:14px;margin-bottom:12px;color:var(--text-muted,#6b7280);font-weight:600;">Inventory Value by Category</h3><div style="position:relative;height:240px;"><canvas id="inv-chart-val"></canvas></div>';
+    chartsContainer.appendChild(chartCard2);
 
     // Table
     const tableContainer = document.createElement('div');
@@ -205,6 +224,56 @@ export function render(container) {
       emptyMessage: 'No products in inventory',
       emptyIcon: '📦',
     });
+
+    // Render Charts
+    setTimeout(() => {
+      const catCounts = {};
+      const catValues = {};
+      data.forEach(d => {
+        catCounts[d._category] = (catCounts[d._category] || 0) + 1;
+        catValues[d._category] = (catValues[d._category] || 0) + d._totalValue;
+      });
+
+      const labels = Object.keys(catCounts);
+      const bgColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+      
+      const theme = document.documentElement.getAttribute('data-theme');
+      const textColor = theme === 'dark' ? '#9ca3af' : '#6b7280';
+      const gridColor = theme === 'dark' ? '#374151' : '#e5e7eb';
+
+      const ctx1 = document.getElementById('inv-chart-cat');
+      if (ctx1 && window.Chart) {
+        if (activeChart1) activeChart1.destroy();
+        activeChart1 = new window.Chart(ctx1, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [{ data: Object.values(catCounts), backgroundColor: bgColors, borderWidth: 0 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: textColor } } } }
+        });
+      }
+
+      const ctx2 = document.getElementById('inv-chart-val');
+      if (ctx2 && window.Chart) {
+        if (activeChart2) activeChart2.destroy();
+        activeChart2 = new window.Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ label: 'Value ' + symbol, data: Object.values(catValues), backgroundColor: '#3b82f6', borderRadius: 4 }]
+          },
+          options: { 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: textColor } },
+              y: { grid: { color: gridColor }, ticks: { color: textColor } }
+            }
+          }
+        });
+      }
+    }, 50);
   }
 
   // ============================================
@@ -298,6 +367,16 @@ export function render(container) {
       summaryEl.innerHTML = '';
       renderStatCards(summaryEl, cards);
 
+      // Add charts container dynamically if not present
+      let salesChartsContainer = document.getElementById('sales-charts-container');
+      if (!salesChartsContainer) {
+        salesChartsContainer = document.createElement('div');
+        salesChartsContainer.id = 'sales-charts-container';
+        salesChartsContainer.style.cssText = 'background:var(--bg-primary,#fff);border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:16px;height:300px;margin-bottom:20px;margin-top:20px;';
+        salesChartsContainer.innerHTML = '<h3 style="font-size:14px;margin-bottom:12px;color:var(--text-muted,#6b7280);font-weight:600;">Sales Over Time</h3><div style="position:relative;height:240px;"><canvas id="sales-chart"></canvas></div>';
+        tabContentEl.insertBefore(salesChartsContainer, tableContainer);
+      }
+
       // Table data
       const data = filtered.map(inv => {
         const customer = store.getCustomerById(inv.customerId);
@@ -329,6 +408,52 @@ export function render(container) {
         emptyMessage: 'No invoices found for the selected date range',
         emptyIcon: '🧾',
       });
+
+      // Render Chart
+      setTimeout(() => {
+        const dateValues = {};
+        filtered.forEach(f => {
+          const d = f.date || 'Unknown';
+          dateValues[d] = (dateValues[d] || 0) + (f.totalAmount || 0);
+        });
+
+        const sortedDates = Object.keys(dateValues).sort();
+        const salesData = sortedDates.map(d => dateValues[d]);
+
+        const theme = document.documentElement.getAttribute('data-theme');
+        const textColor = theme === 'dark' ? '#9ca3af' : '#6b7280';
+        const gridColor = theme === 'dark' ? '#374151' : '#e5e7eb';
+
+        const ctx = document.getElementById('sales-chart');
+        if (ctx && window.Chart) {
+          if (activeChart1) activeChart1.destroy();
+          activeChart1 = new window.Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: sortedDates.map(d => formatDate(d)),
+              datasets: [{
+                label: 'Sales ' + symbol,
+                data: salesData,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6
+              }]
+            },
+            options: { 
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: textColor } },
+                y: { grid: { color: gridColor }, ticks: { color: textColor }, beginAtZero: true }
+              }
+            }
+          });
+        }
+      }, 50);
     }
 
     renderSalesData();

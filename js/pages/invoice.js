@@ -452,11 +452,13 @@ function openViewInvoiceModal(invoice) {
 
   const footer = canMarkPaid
     ? `<button type="button" id="inv-view-close" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border-color,#d1d5db);background:var(--bg-primary,#fff);color:var(--text-primary,#374151);cursor:pointer;font-size:14px;font-weight:500;">Close</button>
-       <button type="button" id="inv-mark-paid-btn" style="padding:9px 24px;border-radius:8px;border:none;background:#10b981;color:white;cursor:pointer;font-size:14px;font-weight:600;">✓ Mark as Paid</button>`
-    : `<button type="button" id="inv-view-close" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border-color,#d1d5db);background:var(--bg-primary,#fff);color:var(--text-primary,#374151);cursor:pointer;font-size:14px;font-weight:500;">Close</button>`;
+       <button type="button" id="inv-mark-paid-btn" style="padding:9px 24px;border-radius:8px;border:none;background:#10b981;color:white;cursor:pointer;font-size:14px;font-weight:600;">✓ Mark as Paid</button>
+       <button type="button" id="inv-download-pdf-btn" style="padding:9px 24px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-size:14px;font-weight:600;">📥 Download PDF</button>`
+    : `<button type="button" id="inv-view-close" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border-color,#d1d5db);background:var(--bg-primary,#fff);color:var(--text-primary,#374151);cursor:pointer;font-size:14px;font-weight:500;">Close</button>
+       <button type="button" id="inv-download-pdf-btn" style="padding:9px 24px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-size:14px;font-weight:600;">📥 Download PDF</button>`;
 
   const content = `
-    <div>
+    <div id="invoice-pdf-content" style="padding:20px; background:var(--bg-primary,#fff); color:var(--text-primary,#111);">
       <!-- Company info -->
       <div style="margin-bottom:20px;">
         <div style="font-size:18px;font-weight:700;">${escapeHtml(settings.companyName || 'SuFa Inventory')}</div>
@@ -532,6 +534,57 @@ function openViewInvoiceModal(invoice) {
   const modalEl = modal.getElement();
 
   modalEl.querySelector('#inv-view-close').addEventListener('click', () => modal.close());
+
+  const pdfBtn = modalEl.querySelector('#inv-download-pdf-btn');
+  if (pdfBtn) {
+    pdfBtn.addEventListener('click', () => {
+      const pdfContent = modalEl.querySelector('#invoice-pdf-content');
+      if (!pdfContent || !window.jspdf || !window.html2canvas) {
+        showError('PDF export libraries are not loaded');
+        return;
+      }
+      
+      const originalBg = pdfContent.style.background;
+      pdfContent.style.background = '#ffffff'; // force white for PDF
+
+      const btnText = pdfBtn.innerHTML;
+      pdfBtn.innerHTML = '⏳ Generating...';
+      pdfBtn.disabled = true;
+
+      window.html2canvas(pdfContent, { scale: 2, useCORS: true }).then(canvas => {
+        pdfContent.style.background = originalBg; // revert
+        
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new window.jspdf.jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        const imgProps = pdf.getImageProperties(imgData);
+        // A4 dimensions: 210 x 297 mm
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        
+        // Add a small margin
+        const margin = 10;
+        const printWidth = pdfWidth - (margin * 2);
+        const printHeight = (imgProps.height * printWidth) / imgProps.width;
+
+        pdf.addImage(imgData, 'PNG', margin, margin, printWidth, printHeight);
+        pdf.save(`Invoice-${invoice.invoiceNumber || 'draft'}.pdf`);
+
+        pdfBtn.innerHTML = btnText;
+        pdfBtn.disabled = false;
+        showSuccess('PDF downloaded successfully');
+      }).catch(err => {
+        pdfContent.style.background = originalBg;
+        pdfBtn.innerHTML = btnText;
+        pdfBtn.disabled = false;
+        showError('Failed to generate PDF');
+        console.error(err);
+      });
+    });
+  }
 
   if (canMarkPaid) {
     const paidBtn = modalEl.querySelector('#inv-mark-paid-btn');
