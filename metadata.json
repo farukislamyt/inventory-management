@@ -1,0 +1,5 @@
+{
+  "name": "SuFa Inventory Management System",
+  "description": "A comprehensive, static inventory management system with dashboard, accounting, invoicing, and stock tracking, powered by local storage.",
+  "requestFramePermissions": []
+}
