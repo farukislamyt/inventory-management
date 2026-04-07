@@ -4,13 +4,15 @@
 // featuring localStorage persistence and cross-module reactivity
 // ============================================
 
+import { SafeStorage, DataIntegrityError, errorLogger } from './error-handling.js';
+import { CONFIG } from './constants.js';
+
 class _Store {
   constructor() {
     this.data = null;
     this.listeners = new Map(); // event -> Set<callback>
     this.STORAGE_KEY = 'sufa-inventory-data';
     this._saveTimer = null;
-    this._DEBOUNCE_MS = 300;
     this.load();
   }
 
@@ -20,29 +22,179 @@ class _Store {
 
   load() {
     try {
-      const raw = localStorage.getItem(this.STORAGE_KEY);
+      const raw = SafeStorage.getItem(this.STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        // Ensure all expected keys exist (merge with defaults for forward compat)
+        const parsed = SafeStorage.getJSON(this.STORAGE_KEY);
+        if (!parsed) {
+          throw new Error('Failed to parse stored data');
+        }
+
+        // Validate and sanitize data
         const defaults = this._getDefaultData();
-        this.data = {
-          settings: { ...defaults.settings, ...parsed.settings },
-          categories: Array.isArray(parsed.categories) ? parsed.categories : [],
-          products: Array.isArray(parsed.products) ? parsed.products : [],
-          customers: Array.isArray(parsed.customers) ? parsed.customers : [],
-          suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
-          invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
-          purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
-          stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
-          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-        };
+        const validated = this._validateLoadedData(parsed, defaults);
+
+        this.data = validated;
         return;
       }
     } catch (e) {
-      console.error('Store: failed to load data from localStorage, using defaults', e);
+      const error = new DataIntegrityError(
+        `Failed to load data from localStorage: ${e.message}`,
+        'store',
+        { originalError: e.message }
+      );
+      errorLogger.log(error, 'Using default data');
     }
     this.data = this._getDefaultData();
   }
+
+  /**
+   * Validate and sanitize loaded data structure
+   * Removes corrupted entries, validates required fields
+   */
+  _validateLoadedData(parsed, defaults) {
+    const data = {
+      settings: this._validateSettings(parsed.settings || {}, defaults.settings),
+      categories: this._validateEntityArray(parsed.categories || [], 'category'),
+      products: this._validateEntityArray(parsed.products || [], 'product'),
+      customers: this._validateEntityArray(parsed.customers || [], 'customer'),
+      suppliers: this._validateEntityArray(parsed.suppliers || [], 'supplier'),
+      invoices: this._validateEntityArray(parsed.invoices || [], 'invoice'),
+      purchases: this._validateEntityArray(parsed.purchases || [], 'purchase'),
+      stockMovements: this._validateEntityArray(parsed.stockMovements || [], 'stockMovement'),
+      transactions: this._validateEntityArray(parsed.transactions || [], 'transaction'),
+    };
+
+    return data;
+  }
+
+  /**
+   * Validate settings object
+   */
+  _validateSettings(settings, defaults) {
+    const validated = { ...defaults };
+
+    // Whitelist allowed settings keys
+    const allowedKeys = Object.keys(defaults);
+    for (const key of allowedKeys) {
+      if (key in settings && settings[key] !== null && settings[key] !== undefined) {
+        const value = settings[key];
+
+        // Type validation
+        if (typeof value === typeof defaults[key]) {
+          validated[key] = value;
+        } else if (key === 'taxRate' || key === 'lowStockThreshold') {
+          // Numeric fields
+          const num = parseFloat(value);
+          if (!isNaN(num) && num >= 0) {
+            validated[key] = num;
+          }
+        }
+      }
+    }
+
+    return validated;
+  }
+
+  /**
+   * Validate array of entities
+   * Removes items with missing required id, filters out non-objects
+   */
+  _validateEntityArray(arr, entityType) {
+    if (!Array.isArray(arr)) {
+      return [];
+    }
+
+    const validated = [];
+    const invalidCount = 0;
+
+    for (const item of arr) {
+      // Must be object
+      if (typeof item !== 'object' || item === null) {
+        continue;
+      }
+
+      // Must have id
+      if (!item.id) {
+        continue;
+      }
+
+      // Type-specific validation
+      const isValid = this._validateEntity(item, entityType);
+      if (isValid) {
+        validated.push(item);
+      }
+    }
+
+    // Log if items were removed
+    if (arr.length > validated.length) {
+      errorLogger.log(
+        new DataIntegrityError(
+          `Removed ${arr.length - validated.length} corrupted ${entityType} entries`,
+          entityType
+        ),
+        null
+      );
+    }
+
+    return validated;
+  }
+
+  /**
+   * Validate individual entity based on type
+   */
+  _validateEntity(item, entityType) {
+    // All entities require id
+    if (!item.id) return false;
+
+    switch (entityType) {
+      case 'product':
+        // Required: name, quantity, costPrice, sellingPrice
+        return (
+          item.name &&
+          typeof item.quantity === 'number' &&
+          typeof item.costPrice === 'number' &&
+          typeof item.sellingPrice === 'number'
+        );
+
+      case 'customer':
+      case 'supplier':
+        // Required: name
+        return item.name && typeof item.name === 'string';
+
+      case 'category':
+        // Required: name
+        return item.name && typeof item.name === 'string';
+
+      case 'invoice':
+      case 'purchase':
+        // Required: number, items array
+        return (
+          (item.invoiceNumber || item.purchaseNumber) &&
+          Array.isArray(item.items) &&
+          item.items.length > 0
+        );
+
+      case 'transaction':
+        // Required: type, amount, date
+        return (
+          item.type &&
+          typeof item.amount === 'number' &&
+          item.date
+        );
+
+      case 'stockMovement':
+        // Required: productId, type, quantity
+        return (
+          item.productId &&
+          item.type &&
+          typeof item.quantity === 'number'
+        );
+
+      default:
+        return true; // Unknown type, allow it
+    }
+  }
+
 
   _getDefaultData() {
     return {
@@ -73,17 +225,20 @@ class _Store {
   /**
    * Debounced save to localStorage (300ms).
    * Rapid successive calls within the window are coalesced into one write.
+   * Uses SafeStorage for error handling.
    */
   save() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
-      } catch (e) {
-        console.error('Store: failed to persist data', e);
+      const success = SafeStorage.setJSON(this.STORAGE_KEY, this.data);
+      if (!success) {
+        errorLogger.log(
+          new DataIntegrityError('Failed to persist data to localStorage', 'store'),
+          'Data changes may not be saved'
+        );
       }
       this._saveTimer = null;
-    }, this._DEBOUNCE_MS);
+    }, CONFIG.STORE_DEBOUNCE_MS);
   }
 
   // ============================================
