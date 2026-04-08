@@ -118,8 +118,25 @@ export const Dashboard: React.FC = () => {
               <option>Last 12 Months</option>
             </select>
           </div>
-          <div className="h-[300px] w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-xl">
-            <p className="text-slate-500 text-sm italic">Chart visualization temporarily disabled for troubleshooting.</p>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Area type="monotone" dataKey="sales" stroke="#2563eb" fillOpacity={1} fill="url(#colorSales)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

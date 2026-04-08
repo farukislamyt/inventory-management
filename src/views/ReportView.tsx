@@ -66,22 +66,76 @@ export const ReportView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <h3 className="font-bold text-lg mb-6 text-slate-900 dark:text-white">Monthly Performance</h3>
-          <div className="h-[300px] w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-xl">
-            <p className="text-slate-500 text-sm italic">Chart visualization temporarily disabled.</p>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Legend iconType="circle" />
+                <Bar dataKey="sales" fill="#2563eb" radius={[4, 4, 0, 0]} name="Sales" />
+                <Bar dataKey="purchases" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Purchases" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <h3 className="font-bold text-lg mb-6 text-slate-900 dark:text-white">Category Distribution</h3>
-          <div className="h-[300px] w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-xl">
-            <p className="text-slate-500 text-sm italic">Chart visualization temporarily disabled.</p>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Legend layout="vertical" align="right" verticalAlign="middle" />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <h3 className="font-bold text-lg mb-6 text-slate-900 dark:text-white">Profit Trend</h3>
-          <div className="h-[300px] w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-xl">
-            <p className="text-slate-500 text-sm italic">Chart visualization temporarily disabled.</p>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Legend iconType="circle" />
+                <Line 
+                  type="monotone" 
+                  dataKey={(d) => d.sales - d.purchases} 
+                  stroke="#16a34a" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#16a34a' }}
+                  activeDot={{ r: 6 }}
+                  name="Net Profit"
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
