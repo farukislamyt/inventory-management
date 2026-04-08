@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Edit2, Trash2, Search } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const CategoryView: React.FC = () => {
   const { state, addCategory, updateCategory, deleteCategory } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,7 +88,10 @@ export const CategoryView: React.FC = () => {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
-                        onClick={() => deleteCategory(category.id)}
+                        onClick={() => {
+                          setDeletingId(category.id);
+                          setIsDeleteModalOpen(true);
+                        }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -105,6 +111,18 @@ export const CategoryView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <ConfirmModal 
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingId(null);
+        }}
+        onConfirm={() => deletingId && deleteCategory(deletingId)}
+        title="Delete Category"
+        message="Are you sure you want to delete this category? This will not delete products in this category, but they will become uncategorized."
+        confirmText="Delete"
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

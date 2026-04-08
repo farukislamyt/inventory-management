@@ -12,9 +12,11 @@ import {
   RefreshCcw, 
   History,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const SettingsView: React.FC = () => {
   const { state, updateSettings, exportData, importData, resetData } = useApp();
@@ -26,6 +28,7 @@ export const SettingsView: React.FC = () => {
   });
   const [showSuccess, setShowSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,12 +211,21 @@ export const SettingsView: React.FC = () => {
               Resetting the system will permanently delete all your data, including products, customers, and transactions. This action cannot be undone.
             </p>
             <button 
-              onClick={resetData}
+              onClick={() => setIsResetModalOpen(true)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/10 text-rose-600 border border-rose-100 dark:border-rose-900/30 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors text-sm font-bold"
             >
               <RefreshCcw className="w-4 h-4" /> Reset System Data
             </button>
           </div>
+
+          <ConfirmModal 
+            isOpen={isResetModalOpen}
+            onClose={() => setIsResetModalOpen(false)}
+            onConfirm={resetData}
+            title="Reset System Data"
+            message="Are you sure you want to reset ALL data? This will permanently delete all products, customers, invoices, and transactions. This action cannot be undone."
+            confirmText="Reset Everything"
+          />
 
           {/* System Info */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">

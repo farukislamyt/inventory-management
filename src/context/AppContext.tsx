@@ -142,11 +142,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetData = () => {
-    if (window.confirm('Are you sure you want to reset ALL data? This cannot be undone.')) {
-      setState(initialState);
-      localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
-    }
+    setState(initialState);
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
   };
 
   const addCategory = (category: Omit<Category, 'id'>) => {
