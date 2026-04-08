@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './views/Dashboard';
 import { CategoryView } from './views/CategoryView';
@@ -12,9 +12,15 @@ import { AccountingView } from './views/AccountingView';
 import { StockView } from './views/StockView';
 import { ReportView } from './views/ReportView';
 import { SettingsView } from './views/SettingsView';
+import { Onboarding } from './components/Onboarding';
 
-export default function App() {
+const AppContent = () => {
+  const { state } = useApp();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  if (!state.onboarded) {
+    return <Onboarding />;
+  }
 
   const renderView = () => {
     switch (activeTab) {
@@ -34,10 +40,16 @@ export default function App() {
   };
 
   return (
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      {renderView()}
+    </Layout>
+  );
+};
+
+export default function App() {
+  return (
     <AppProvider>
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-        {renderView()}
-      </Layout>
+      <AppContent />
     </AppProvider>
   );
 }
